@@ -1,4 +1,4 @@
-# Fixed-Outline With Rectilinear Soft Blocks
+# Fixed-Outline Floorplanning With Rectilinear Soft Blocks
 Usage
 ---
 compliation : `make` 
@@ -30,9 +30,9 @@ The hidden testcases (case 7~10) can be found in https://www.iccad-contest.org/2
 
 Result Visulization
 ---
-![Result Visualization](./doc/1.png)
-![Result Visualization](./doc/2.png)
-![Result Visualization](./doc/6.png)
+<p align="center"><img src="./doc/1.png" alt="Result Visualization" width="500"/><p>
+<p align="center"><img src="./doc/2.png" alt="Result Visualization" width="500"/><p>
+<p align="center"><img src="./doc/6.png" alt="Result Visualization" width="500"/><p>
 
 
 Further Detail

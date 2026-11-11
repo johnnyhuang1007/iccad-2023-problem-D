@@ -253,32 +253,32 @@ double Omega(double temperature)
 	return 0.98;
 }
 
-void randBase(vector<int> chosen, vector<Tile>& newSoft, Plane& chip)
+void randBase(const vector<int>& chosen, vector<Tile>& newSoft, Plane& chip)
 {
-	for (int& idx : chosen)
+	for (int idx : chosen)
 		chip.ripoff(idx);
 
-	for (int& idx : chosen)
+	for (int idx : chosen)
 	{
 		newSoft[idx] = chip.generateRand(idx);
 		newSoft[idx].clearStitch();
 	}
 }
 
-void moveBase(vector<int> chosen, vector<Tile>& newSoft, Plane& chip)
+void moveBase(const vector<int>& chosen, vector<Tile>& newSoft, Plane& chip)
 {
-	for (int& idx : chosen)
+	for (int idx : chosen)
 	{
 		newSoft[idx] = chip.moveCenter(idx);
 		newSoft[idx].clearStitch();
 	}
 }
 
-void shapeBase(vector<int> chosen, vector<Tile>& newSoft, Plane& chip)
+void shapeBase(const vector<int>& chosen, vector<Tile>& newSoft, Plane& chip)
 {
-	for (int& idx : chosen)
+	for (int idx : chosen)
 		chip.ripoff(idx);
-	for (int& idx : chosen)
+	for (int idx : chosen)
 	{
 		//	newSoft[idx] = chip.reshape(idx);
 		newSoft[idx].clearStitch();
@@ -303,14 +303,15 @@ void rectiLinearSA(Plane& chip, vector<Tile>& currentSoft, char* out, bool Shrin
 		chip.minHPWLStretch(chip.getSoft(order[i]), dir[i]);
 	double preHPWL = chip.all_HPWL();
 
+	vector<int> old_order, old_dir;	// hoisted: assignment reuses their storage
 
 	while (Tmp >= 0.001)
 	{
 		for (int i = 0; i < 3 * chip.softModule_size(); i++)
 		{
 
-			vector<int> old_order = order;
-			vector<int>old_dir = dir;
+			old_order = order;
+			old_dir = dir;
 			bool changeDir = rand() % 2;
 			if (changeDir)
 				dir[rand() % dir.size()] = rand() % 3;
@@ -358,7 +359,7 @@ void rectiLinearSA(Plane& chip, vector<Tile>& currentSoft, char* out, bool Shrin
 }
 
 bool wireReduceSA(Plane& chip, vector<Tile>& currentSoft, vector<int>& initChosen, double initTmp, double endTmp, \
-	double areaWeight, int tryTime, int adjsize, void(*operatorFunc)(vector<int>, vector<Tile>&, Plane&))
+	double areaWeight, int tryTime, int adjsize, void(*operatorFunc)(const vector<int>&, vector<Tile>&, Plane&))
 {
 	vector<Tile> newSoft;
 	newSoft.resize(currentSoft.size());

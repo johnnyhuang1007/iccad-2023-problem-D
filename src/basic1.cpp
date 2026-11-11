@@ -131,7 +131,7 @@ Plane::Plane(string file)
 	sort(Soft_Module_set.begin(), Soft_Module_set.end(), moduleAreaCompare);
 }
 
-void Plane::obtainPreResult(vector<Tile> softSet)
+void Plane::obtainPreResult(const vector<Tile>& softSet)
 {
 	ripoffALL();
 	for (int i = 0; i < softSet.size(); i++)
@@ -144,7 +144,7 @@ void Plane::obtainPreResult(vector<Tile> softSet)
 	}
 }
 
-void Plane::obtainPreResult(vector<vector<Tile>> softSet)
+void Plane::obtainPreResult(const vector<vector<Tile>>& softSet)
 {
 	ripoffALL();
 	for (int i = 0; i < softSet.size(); i++)
@@ -193,8 +193,8 @@ void Plane::insert(Tile* tile)
 	space = point_finding(point_left_down(tile));
 	h_split(space, point_left_down(tile), 1);
 
-	vector<Tile*> occupiedSpace;
-	occupiedSpace = findOccupiedSpace(tile);
+	vector<Tile*>& occupiedSpace = occScratch;
+	findOccupiedSpace(tile, occupiedSpace);
 	DS(tile) = point_finding(LD(tile) + Point(-1, 0), occupiedSpace[0]);
 	LS(tile) = point_finding(LD(tile) + Point(0, -1), occupiedSpace[0]);
 
@@ -223,17 +223,21 @@ void Plane::insert(Tile* tile)
 
 vector<Tile*> Plane::findOccupiedSpace(Tile* oTile)		//from lower to top
 {
+	vector<Tile*> occupiedSpace;
+	findOccupiedSpace(oTile, occupiedSpace);
+	return occupiedSpace;
+}
+
+void Plane::findOccupiedSpace(Tile* oTile, vector<Tile*>& occupiedSpace)
+{
 	Tile* up, * down;
 	up = point_finding(RU(oTile));
 	down = point_finding(LD(oTile));
 
-	vector<Tile*> occupiedSpace;
+	occupiedSpace.clear();
 	occupiedSpace.push_back(down);
 	if (down == up)
-	{
-		return occupiedSpace;
-	}
-	occupiedSpace.reserve((RU(up) - LD(down)).y);
+		return;
 
 	Tile* cur = down;
 	Point findPoint = LD(oTile);
@@ -245,13 +249,10 @@ vector<Tile*> Plane::findOccupiedSpace(Tile* oTile)		//from lower to top
 		findPoint.y = RU(cur).y + 1;
 		occupiedSpace.push_back(cur);
 	}
-
-	return occupiedSpace;
 }
 
 void Plane::v_split(Tile* leftSpace, Tile* inTile)
 {
-	vector<Tile*> Neighbors;
 
 	//完全覆蓋時刪除space_tile_set的物件
 	if (*inTile >= *leftSpace)
@@ -266,8 +267,7 @@ void Plane::v_split(Tile* leftSpace, Tile* inTile)
 			LS(inTile) = LS(leftSpace);
 			DS(inTile) = DS(leftSpace);
 		}
-		Neighbors = neighborFinding(inTile);
-		updateStitch(Neighbors, inTile);
+		restitch(inTile);
 		delete leftSpace;
 		leftSpace = NULL;
 		return;
@@ -320,16 +320,13 @@ void Plane::v_split(Tile* leftSpace, Tile* inTile)
 
 	if (leftSpace != NULL)
 	{
-		Neighbors = neighborFinding(leftSpace);
-		updateStitch(Neighbors, leftSpace);
+		restitch(leftSpace);
 	}
 	if (rightSpace != NULL)
 	{
-		Neighbors = neighborFinding(rightSpace);
-		updateStitch(Neighbors, rightSpace);
+		restitch(rightSpace);
 	}
-	Neighbors = neighborFinding(inTile);
-	updateStitch(Neighbors, inTile);
+	restitch(inTile);
 }
 
 void Plane::h_split(Tile* space, Point split_point, int bound_side)
@@ -381,14 +378,24 @@ void Plane::h_split(Tile* space, Point split_point, int bound_side)
 		cur = cur->stitch[3];
 	LS(new_space) = cur;
 
-	vector<Tile*> Neighbors;
-	Neighbors = neighborFinding(space);
-	updateStitch(Neighbors, space);
-	Neighbors = neighborFinding(new_space);
-	updateStitch(Neighbors, new_space);
+	restitch(space);
+	restitch(new_space);
 }
 
-void Plane::updateStitch(vector<Tile*> neighbors, Tile* tile)
+// Same as updateStitch(neighborFinding(tile), tile), but the neighbor list is
+// built in a reused buffer instead of a freshly allocated (and over-reserved)
+// vector that was then copied again by value.
+void Plane::restitch(Tile* tile)
+{
+	nbrScratch.clear();
+	findRightNeighbor(tile, nbrScratch);
+	findDownNeighbor(tile, nbrScratch);
+	findLeftNeighbor(tile, nbrScratch);
+	findUpNeighbor(tile, nbrScratch);
+	updateStitch(nbrScratch, tile);
+}
+
+void Plane::updateStitch(const vector<Tile*>& neighbors, Tile* tile)
 {
 	for (size_t i = 0; i < neighbors.size(); i++)
 	{

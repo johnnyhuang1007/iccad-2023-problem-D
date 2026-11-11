@@ -9,7 +9,7 @@ void Plane::ripTillRoot(int cur)
 
 void Plane::ripTillRoot(Soft_Module* curSoft)
 {
-	vector<Tile*> comp = curSoft->getComp();
+	const vector<Tile*>& comp = curSoft->component;	// remove() never edits it
 	for (int i = 1; i < comp.size(); i++)
 		remove(comp[i]);
 	
@@ -21,11 +21,13 @@ void Plane::remove(Tile* toRemove)
 
 	//Âà²¾¦Üspace set
 	toRemove->belong = NULL;
-	vector<Tile*> left;
+	vector<Tile*>& left = leftScratch;
+	left.clear();
 	//	left.reserve(height(toRemove));
 	findLeftNeighbor(toRemove, left);
 	
-	vector<Tile*> right;
+	vector<Tile*>& right = rightScratch;
+	right.clear();
 	//	right.reserve(height(toRemove));
 	findRightNeighbor(toRemove, right);
 	if(left.size()==0 && right.size()==0)
@@ -75,7 +77,6 @@ bool Plane::merge(Tile* Main, Tile* Sub)
 		return 0;
 
 	int spaceMergeType = -1;
-	vector<Tile*> neighbors;
 	if (LD(Main).y == LD(Sub).y && RU(Main).y == RU(Sub).y)
 	{
 		if (RU(Main).x < LD(Sub).x)
@@ -118,8 +119,7 @@ bool Plane::merge(Tile* Main, Tile* Sub)
 	else
 		return 0;
 
-	neighbors = neighborFinding(Main);
-	updateStitch(neighbors, Main);
+	restitch(Main);
 	delete Sub;
 	Sub = NULL;
 	if (Main->belong == NULL)
@@ -141,20 +141,23 @@ bool Plane::merge(Tile* Main, Tile* Sub)
 
 vector<Tile*> Plane::getAllSpace(void (*findNeighbor)(Tile*, std::vector<Tile*>&), Tile* cur)
 {
-	vector<Tile*> neighbor;
-	neighbor.clear();
-	neighbor.reserve(max({ width(cur),height(cur) })/10);
-	findNeighbor(cur, neighbor);
 	vector<Tile*> space;
+	getAllSpace(findNeighbor, cur, space);
+	return space;
+}
+
+// Allocation-free variant: fills a caller-owned buffer.
+void Plane::getAllSpace(void (*findNeighbor)(Tile*, std::vector<Tile*>&), Tile* cur, vector<Tile*>& space)
+{
+	vector<Tile*>& neighbor = probeScratch;
+	neighbor.clear();
+	findNeighbor(cur, neighbor);
 	space.clear();
-	space.reserve(neighbor.size());
 	for (int i = 0; i < neighbor.size(); i++)
 	{
 		if (neighbor[i]->belong==NULL)
 			space.push_back(neighbor[i]);
 	}
-	neighbor.clear();
-	return space;
 }
 
 bool Plane::checkAllSpace(Tile* inTile)
@@ -308,7 +311,7 @@ bool Plane::ripoffALL()
 
 bool Plane::ripoff(Soft_Module* curSoft)
 {
-	vector<Tile*> Comp = curSoft->getComp();
+	const vector<Tile*>& Comp = curSoft->component;	// remove() never edits it
 	for (int j = 0; j < Comp.size(); j++)
 		remove(Comp[j]);
 	curSoft->ripoffALL();

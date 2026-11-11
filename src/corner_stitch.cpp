@@ -1,14 +1,55 @@
 #include"Plane.h"
+#include<new>
 
-Point& LD(Tile* a) { return (a)->coord[0]; }
-Point& RU(Tile* a) { return (a)->coord[1]; }
-Point LU(Tile* a) { return Point((a)->coord[1].y, (a)->coord[0].x); }
-Point RD(Tile* a) { return Point((a)->coord[0].y, (a)->coord[1].x); }
-Point Center(Tile* a) { return Point(U(a) - D(a), R(a) - L(a)); }
-double& U(Tile* a) { return (a)->coord[1].y; }
-double& D(Tile* a) { return (a)->coord[0].y; }
-double& L(Tile* a) { return (a)->coord[0].x; }
-double& R(Tile* a) { return (a)->coord[1].x; }
+// ---------------------------------------------------------------------------
+// Tile pool.
+// A corner-stitched plane holding n solid tiles has at most 3n+1 space tiles,
+// so the number of live tiles is small and bounded; only the churn is huge.
+// Freed tiles go onto a free list and are handed straight back out, so the
+// steady state does no malloc/free at all. The pool grows a whole chunk at a
+// time if the bound ever rises (more components per module) and is never
+// returned to the OS.
+// ---------------------------------------------------------------------------
+namespace
+{
+	union TileSlot
+	{
+		TileSlot* next;
+		alignas(Tile) unsigned char raw[sizeof(Tile)];
+	};
+	const std::size_t kTileChunk = 4096;
+	TileSlot* tileFreeList = NULL;
+
+	void growTilePool()
+	{
+		TileSlot* chunk = static_cast<TileSlot*>(::operator new(kTileChunk * sizeof(TileSlot)));
+		for (std::size_t i = 0; i < kTileChunk; i++)
+		{
+			chunk[i].next = tileFreeList;
+			tileFreeList = &chunk[i];
+		}
+	}
+}
+
+void* Tile::operator new(std::size_t size)
+{
+	if (size != sizeof(Tile))
+		return ::operator new(size);
+	if (tileFreeList == NULL)
+		growTilePool();
+	TileSlot* slot = tileFreeList;
+	tileFreeList = slot->next;
+	return slot;
+}
+
+void Tile::operator delete(void* p) noexcept
+{
+	if (p == NULL)
+		return;
+	TileSlot* slot = static_cast<TileSlot*>(p);
+	slot->next = tileFreeList;
+	tileFreeList = slot;
+}
 
 Tile* getByMinWidth(std::vector<Tile*> Tlist)
 {
@@ -66,7 +107,7 @@ std::ostream& operator<<(std::ostream& fout, Tile t)
 	return fout;
 }
 
-Tile::Tile(Tile* cp)
+Tile::Tile(const Tile* cp)
 {
 	this->coord[0] = cp->coord[0];
 	this->coord[1] = cp->coord[1];
@@ -76,7 +117,7 @@ Tile::Tile(Tile* cp)
 
 }
 
-Tile::Tile(Tile* cp,bool copyStitch)
+Tile::Tile(const Tile* cp,bool copyStitch)
 {
 	this->coord[0] = cp->coord[0];
 	this->coord[1] = cp->coord[1];
@@ -146,44 +187,6 @@ Tile::Tile()
 	this->belong = NULL;
 }
 
-bool in_range(Tile* tile, Point coord)
-{
-	
-	if (!x_in_range(tile, coord))
-		return 0;
-	if (!y_in_range(tile, coord))
-		return 0;
-
-	return 1;
-}
-
-bool x_in_range(Tile* tile, Point coord)
-{
-	if (LD(tile).x > coord.x)
-		return 0;
-	if (RU(tile).x < coord.x)
-		return 0;
-	return 1;
-}
-
-bool y_in_range(Tile* tile, Point coord)
-{
-	if (tile->coord[0].y > coord.y)
-		return 0;
-	if (tile->coord[1].y < coord.y)
-		return 0;
-	return 1;
-}
-
-bool Point::operator==(Point a)
-{
-	if (y != a.y)
-		return 0;
-	if (x != a.x)
-		return 0;
-	return 1;
-}
-
 bool Tile::operator==(Tile b)
 {
 	if (!(coord[0] == b.coord[0]))
@@ -228,31 +231,6 @@ void Tile::clearStitch()
 {
 	for (int i = 0; i < 4; i++)
 		stitch[i] = NULL;
-}
-
-int height(Tile* a)
-{
-	return (a)->coord[1].y - (a)->coord[0].y + 1;
-}
-
-int width(Tile* a)
-{
-	return (a)->coord[1].x - (a)->coord[0].x + 1;
-}
-
-int area(Tile* a)
-{
-	return width(a) * height(a);
-}
-
-int width(Module* a)
-{
-	return RU(a->bound_Tile[2]).x - LD(a->bound_Tile[0]).x + 1;
-}
-
-int height(Module* a)
-{
-	return RU(a->bound_Tile[1]).y - LD(a->bound_Tile[3]).y + 1;
 }
 
 Wire::Wire(Module* a, Module* b, int weight)

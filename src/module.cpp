@@ -1,11 +1,6 @@
 #include "Plane.h"
 using namespace std;
 
-Point LD(Module* a) { return Point(LD(a->getDown()).y, LD(a->getLeft()).x); }
-Point RU(Module* a) { return Point(RU(a->getUp()).y, RU(a->getRight()).x); }
-Point RD(Module* a) { return Point(LD(a->getDown()).y, RU(a->getRight()).x); }
-Point LU(Module* a) { return Point(RU(a->getUp()).y, LD(a->getLeft()).x); }
-
 Fixed_Module::Fixed_Module(string name, Point coord, int height, int width) :Module(name, height* width)
 {
 	root = new Tile(coord, height, width, this);
@@ -37,9 +32,9 @@ bool yComp(PW a, PW b) { return a.Cen.y < b.Cen.y; }
 
 Point Module::optimPos()
 {
-	vector<PW> otherModules;
+	// reused across calls: optimPos runs once per SA move
+	static thread_local vector<PW> otherModules;
 	otherModules.clear();
-	otherModules.reserve(wireSet.size());
 	int s = 0;
 	int weightCount = 0;
 	for (auto wire : this->wireSet)
@@ -126,10 +121,6 @@ Point Soft_Module::estHPWL(Point opt)
 	return dir;
 }
 
-Point Module::center()		//網格，如果是grid base，center要再 -(0.5,0.5)
-{
-	return Point((RU(bound_Tile[1]).y + LD(bound_Tile[3]).y) / 2 + 0.5, (RU(bound_Tile[2]).x + LD(bound_Tile[0]).x) / 2 + 0.5);
-}
  
 Point Soft_Module::pseudoCenter(Tile* toInst)
 {
@@ -176,36 +167,6 @@ void Soft_Module::update()
 		cur_area += area(comp);
 	}
 
-}
-
-bool Soft_Module::LegalifAdd(Tile* toInst)
-{
-	if (component.size() == 0)
-		return 0;
-	Point newLD = LD(this);
-	Point newRU = RU(this);
-	if (newLD.y > LD(toInst).y)
-		newLD.y = LD(toInst).y;
-	if (newLD.x > LD(toInst).x)
-		newLD.x = LD(toInst).x;
-	if (newRU.y < RU(toInst).y)
-		newRU.y = RU(toInst).y;
-	if (newRU.x < RU(toInst).x)
-		newRU.x = RU(toInst).x;
-
-
-	double cover = (double)(newRU.x - newLD.x + 1) * (newRU.y - newLD.y + 1);
-	if (cur_area + area(toInst) < min_area)
-		return 0;
-	if (ceil(cover) > ((cur_area + area(toInst)) * 5) / 4)
-		return 0;
-	
-	if ((newRU.x - newLD.x + 1) * 2 < (newRU.y - newLD.y + 1))
-		return 0;
-	if ((newRU.y - newLD.y + 1) * 2 < (newRU.x - newLD.x + 1))
-		return 0;
-		
-	return 1;
 }
 
 bool Soft_Module::checkLegal()

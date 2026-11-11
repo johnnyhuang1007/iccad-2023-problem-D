@@ -125,7 +125,7 @@ Tile Plane::generateRand(Soft_Module* curSoft)
 		}
 	}
 
-	if (curSoft->getComp().size() != 0)
+	if (curSoft->component.size() != 0)
 		ripoff(curSoft);
 	insert(curRoot);
 	curSoft->update(curRoot);
@@ -186,9 +186,10 @@ void Plane::minHPWLStretch(Soft_Module* curSoft, int Vertical)
 	else
 		return;
 	int startComp = curSoft->component.size() - 1;
+	vector<Tile*>& neiSpace = stretchScratch;
 	for (int i = 0; i < curSoft->component.size(); i++)
 	{
-		vector<Tile*> neiSpace = getAllSpace(findNei, curSoft->component[i]);
+		getAllSpace(findNei, curSoft->component[i], neiSpace);
 		for (int j = 0; j < neiSpace.size(); j++)
 		{
 			Tile* toInst = new Tile(neiSpace[j]);
@@ -280,7 +281,7 @@ void Plane::shrinkRoot(int idx) { shrinkRoot(Soft_Module_set[idx]); }
 
 void Plane::shrinkRoot(Soft_Module* curSoft)
 {
-	if (curSoft->getComp().size() <= 1)
+	if (curSoft->component.size() <= 1)
 		return;
 
 	int w;
@@ -458,7 +459,7 @@ void Plane::minHPWLStretch(Soft_Module* curSoft)
 
 }
 
-void findCurLeftRight(vector<Tile*> WspaceSet, int givenWhiteNo, int& curMaxLeft, int& curMinRight)
+void findCurLeftRight(const vector<Tile*>& WspaceSet, int givenWhiteNo, int& curMaxLeft, int& curMinRight)
 {
 	curMaxLeft = 0;
 	curMinRight = 0;
@@ -481,37 +482,29 @@ void findCurLeftRight(vector<Tile*> WspaceSet, int givenWhiteNo, int& curMaxLeft
 
 Tile Plane::findMaxUsableRect(Point given)
 {
-	list<Tile*> Wspacels;
-	Wspacels.push_back(point_finding(given));
-	Tile* givenWhite = Wspacels.front();
+	// Column of white tiles through `given`, bottom to top. Built in reused
+	// buffers (this used to be a std::list plus two fresh vectors per call).
+	Tile* givenWhite = point_finding(given);
 
-	Tile* upperWhite = point_finding(Point(RU(Wspacels.back()).y + 1, given.x), Wspacels.back());
-	while (upperWhite->belong == NULL)
-	{
-		Wspacels.push_back(upperWhite);
-		upperWhite = point_finding(Point(RU(upperWhite).y + 1, given.x), upperWhite);
-	}
-
-	Tile* lowerWhite = point_finding(Point(LD(Wspacels.front()).y - 1, given.x), Wspacels.front());
+	vector<Tile*>& lowerSet = rectLowerScratch;	// below givenWhite, nearest first
+	lowerSet.clear();
+	Tile* lowerWhite = point_finding(Point(LD(givenWhite).y - 1, given.x), givenWhite);
 	while (lowerWhite->belong == NULL)
 	{
-		Wspacels.push_front(lowerWhite);
+		lowerSet.push_back(lowerWhite);
 		lowerWhite = point_finding(Point(LD(lowerWhite).y - 1, given.x), lowerWhite);
 	}
 
-	vector<Tile*> WspaceSet;
-	WspaceSet.reserve(Wspacels.size());
-	for (Tile* Wspace : Wspacels)
-		WspaceSet.push_back(Wspace);
+	vector<Tile*>& WspaceSet = rectScratch;
+	WspaceSet.assign(lowerSet.rbegin(), lowerSet.rend());
+	int givenWhiteNo = WspaceSet.size();
+	WspaceSet.push_back(givenWhite);
 
-	int givenWhiteNo;
-	for (int i = 0; i < WspaceSet.size(); i++)
+	Tile* upperWhite = point_finding(Point(RU(givenWhite).y + 1, given.x), givenWhite);
+	while (upperWhite->belong == NULL)
 	{
-		if (WspaceSet[i] == givenWhite)
-		{
-			givenWhiteNo = i;
-			break;
-		}
+		WspaceSet.push_back(upperWhite);
+		upperWhite = point_finding(Point(RU(upperWhite).y + 1, given.x), upperWhite);
 	}
 
 
@@ -595,22 +588,15 @@ Tile Plane::findMaxUsableRect(Point given)
 		largest = Tile(LD(&largest), height(&largest), height(&largest) * 2, 0);
 
 
-	vector<Tile*> rightNei;
-	rightNei.reserve(Wspacels.size());
+	int rightLimitPos = 10000000;
 	Tile* curRight = point_finding(RU(&largest), givenWhite);
-	rightNei.push_back(curRight);
+	if (RU(curRight).x < rightLimitPos)
+		rightLimitPos = RU(curRight).x;
 	while (LD(curRight).y > LD(&largest).y)
 	{
 		curRight = point_finding(Point(LD(curRight).y - 1, RU(&largest).x), curRight);
-		rightNei.push_back(curRight);
-	}
-
-
-	int rightLimitPos = 10000000;
-	for (int i = 0; i < rightNei.size(); i++)
-	{
-		if (RU(rightNei[i]).x < rightLimitPos)
-			rightLimitPos = RU(rightNei[i]).x;
+		if (RU(curRight).x < rightLimitPos)
+			rightLimitPos = RU(curRight).x;
 	}
 	int maxMovement = rightLimitPos - RU(&largest).x;
 	int movement = max({ 0,int(given.x - Center(&largest).x - 0.5) });

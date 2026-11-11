@@ -42,6 +42,22 @@ class Plane
 private:
 	std::vector<Soft_Module*>	ordered_set;
 
+	// Scratch buffers reused by the corner-stitch primitives so that the SA
+	// inner loop performs no heap allocation. Each one belongs to exactly one
+	// (non-reentrant) routine, named in the comment.
+	std::vector<Tile*> nbrScratch;		// restitch
+	std::vector<Tile*> occScratch;		// insert
+	std::vector<Tile*> leftScratch;		// remove
+	std::vector<Tile*> rightScratch;	// remove
+	std::vector<Tile*> probeScratch;	// getAllSpace
+	std::vector<Tile*> stretchScratch;	// minHPWLStretch
+	std::vector<Tile*> rectScratch;		// findMaxUsableRect
+	std::vector<Tile*> rectLowerScratch;	// findMaxUsableRect
+
+	void restitch(Tile*);
+	void findOccupiedSpace(Tile*, std::vector<Tile*>&);
+	void getAllSpace(void (*fp)(Tile*, std::vector<Tile*>&), Tile*, std::vector<Tile*>&);
+
 public:
 	Tile* boundary[4]; 
 	int Height;
@@ -53,7 +69,7 @@ public:
 	void insert(Tile*);	//不防呆 要確定佔用空間都是SPACE才用
 	void h_split(Tile*);
 	void h_split(Tile*, Point, int);
-	void updateStitch(std::vector<Tile*>, Tile*);
+	void updateStitch(const std::vector<Tile*>&, Tile*);
 	void v_split(Tile*, Tile*);	//(被分割tile,置入tile)
 	void removeSpace(Tile*);
 
@@ -122,8 +138,8 @@ public:
 	std::vector<Wire*> getWires();
 	Soft_Module* getSoft(int i) { return Soft_Module_set[i]; }
 	std::vector<std::vector<Tile>> getAllTile();
-	void obtainPreResult(std::vector<std::vector<Tile>> softSet);
-	void obtainPreResult(std::vector<Tile> softSet);
+	void obtainPreResult(const std::vector<std::vector<Tile>>& softSet);
+	void obtainPreResult(const std::vector<Tile>& softSet);
 	std::vector<std::vector<Tile>> getAllComp();
 
 	Point generateSeed(int,Point&);

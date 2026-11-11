@@ -1,7 +1,7 @@
 #ifndef _CORNER_STITCH_
 #define _CORNER_STITCH_
-#endif
 
+#include<cstddef>
 #include<string>
 #include<iostream>
 #include<vector>
@@ -54,8 +54,8 @@ struct Tile
 		Module* belong = NULL;
 		Tile(Point,int,int);
 		Tile(Point, Point);
-		Tile(Tile*);
-		Tile(Tile*, bool);
+		Tile(const Tile*);
+		Tile(const Tile*, bool);
 		Tile(Point, Point, Module*);
 		Tile(Point, int, int, Module*);
 		Tile(int, int, Point, Module*);
@@ -67,6 +67,12 @@ struct Tile
 		bool is_space() { return belong == NULL; }
 		void rotate();
 		void clearStitch();
+
+		// Tiles are created/destroyed millions of times during SA. They all
+		// come from one free-list pool (see corner_stitch.cpp), so new/delete
+		// on a Tile never reaches malloc/free once the pool is warm.
+		static void* operator new(std::size_t);
+		static void operator delete(void*) noexcept;
 };
 
 struct Wire
@@ -78,18 +84,58 @@ struct Wire
 	double HPWL();
 };
 
-Point& LD(Tile* a);
-Point& RU(Tile* a);
-Point LU(Tile* a);
-Point RD(Tile* a);
-Point Center(Tile* a);
-double& U(Tile* a);
-double& D(Tile* a);
-double& L(Tile* a);
-double& R(Tile* a);
+// Hot accessors: defined here so every translation unit can inline them.
+inline Point& LD(Tile* a) { return a->coord[0]; }
+inline Point& RU(Tile* a) { return a->coord[1]; }
+inline Point LU(Tile* a) { return Point(a->coord[1].y, a->coord[0].x); }
+inline Point RD(Tile* a) { return Point(a->coord[0].y, a->coord[1].x); }
+inline double& U(Tile* a) { return a->coord[1].y; }
+inline double& D(Tile* a) { return a->coord[0].y; }
+inline double& L(Tile* a) { return a->coord[0].x; }
+inline double& R(Tile* a) { return a->coord[1].x; }
+inline Point Center(Tile* a) { return Point(U(a) - D(a), R(a) - L(a)); }
+
+inline int height(Tile* a) { return a->coord[1].y - a->coord[0].y + 1; }
+inline int width(Tile* a) { return a->coord[1].x - a->coord[0].x + 1; }
+inline int area(Tile* a) { return width(a) * height(a); }
+
+inline bool x_in_range(Tile* tile, Point coord)
+{
+	if (tile->coord[0].x > coord.x)
+		return 0;
+	if (tile->coord[1].x < coord.x)
+		return 0;
+	return 1;
+}
+inline bool y_in_range(Tile* tile, Point coord)
+{
+	if (tile->coord[0].y > coord.y)
+		return 0;
+	if (tile->coord[1].y < coord.y)
+		return 0;
+	return 1;
+}
+inline bool in_range(Tile* tile, Point coord)
+{
+	if (!x_in_range(tile, coord))
+		return 0;
+	if (!y_in_range(tile, coord))
+		return 0;
+	return 1;
+}
+inline bool Point::operator==(Point a)
+{
+	if (y != a.y)
+		return 0;
+	if (x != a.x)
+		return 0;
+	return 1;
+}
 
 
 Tile* getByMinWidth(std::vector<Tile*>);
 Tile* getByMaxHeight(std::vector<Tile*>);
 Tile* getByMinHeight(std::vector<Tile*>);
 Tile* getByMaxWidth(std::vector<Tile*>);
+
+#endif
